@@ -86,8 +86,12 @@ trap 'rm -rf "$WORK"' EXIT
 # Copy the repo. Keep the finished persona to one side, then start with no personas.
 REPO=$WORK/repo
 mkdir "$REPO"
-cp -R "$ROOT/." "$REPO/"
-rm -rf "$REPO/.git" "$REPO/out"
+for f in "$ROOT"/* "$ROOT"/.[!.]*; do
+  case "${f##*/}" in
+    .git | .venv | out | '*' | '.[!.]*') continue ;;
+  esac
+  cp -R "$f" "$REPO/"
+done
 find "$REPO" -name __pycache__ -prune -exec rm -rf {} +
 cp "$REPO/personas/soc-triage.yaml" "$WORK/fixed.yaml"
 rm -f "$REPO"/personas/*.yaml
