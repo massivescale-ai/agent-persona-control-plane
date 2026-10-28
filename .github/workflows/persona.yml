@@ -1,5 +1,5 @@
 # Lint on every pull request. Compile on merge to main.
-# NOTE: written for the reference build and not yet run in a real CI system.
+# Runs on GitHub Actions. First green run on main: 2026-10-27, run 40623547582.
 name: persona
 on:
   pull_request:
