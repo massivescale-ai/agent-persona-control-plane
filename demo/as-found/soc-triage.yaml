@@ -1,0 +1,45 @@
+id: soc-triage
+owner: dana.reyes
+sponsor: soc-manager
+purpose: Read an EDR alert, pull context, write the first case note.
+
+identity:
+  runs_as: user
+
+model_access: llm-gateway
+
+data_classes:
+  - security-telemetry
+  - employee-pii
+risk_tier: 1
+
+tool_scope:
+  - siem.search
+  - edr.get_detection
+  - intel.lookup
+  - case.add_note
+  - edr.isolate_host
+
+action_contract:
+  alone:
+    - siem.search
+    - edr.get_detection
+    - intel.lookup
+    - case.add_note
+  needs_approver:
+    role: soc-shift-lead
+    actions:
+      - edr.isolate_host
+  never:
+    - idp.disable_user
+    - edr.delete_detection_rule
+
+autonomy_level: junior
+expires: 2027-04-01
+
+bindings:
+  - project: soc-tier1
+    environment: prod
+    data_scope: edr-tenant-main
+    acting_for: soc-tier1-queue
+    approver: shift-lead-on-call
