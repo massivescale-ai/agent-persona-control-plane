@@ -1,0 +1,36 @@
+# Lint on every pull request. Compile on merge to main.
+# NOTE: written for the reference build and not yet run in a real CI system.
+name: persona
+on:
+  pull_request:
+    paths: ["personas/**", "catalog/**", "schema/**", "tools/**", "demo/**",
+            "demo.sh", "requirements.txt", ".github/workflows/persona.yml"]
+  push:
+    branches: [main]
+    paths: ["personas/**", "catalog/**", "schema/**", "tools/**", "demo/**",
+            "demo.sh", "requirements.txt", ".github/workflows/persona.yml"]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - run: python tools/lint.py
+      # Replay the whole story from the talk in a throwaway copy and check every verdict.
+      - run: bash demo.sh
+  compile:
+    if: github.event_name == 'push'
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - run: python tools/compile.py
+      # Next step in a real estate: push out/registry to the registry service and
+      # out/gateway to the gateway's admin API, with a credential the gateway team owns.
+      - uses: actions/upload-artifact@v4
+        with: {name: compiled, path: out/}

@@ -1,0 +1,9 @@
+# Routes a persona may use to reach a model. A route is a name, never a provider URL or a key.
+model_routes: [llm-gateway]
+# What an agent may do alone at each autonomy level, by the tool's blast rating.
+autonomy_ceiling:
+  intern:    [none]
+  junior:    [none, low]
+  senior:    [none, low, medium]
+  principal: [none, low, medium, high]
+max_lifetime_days: 365

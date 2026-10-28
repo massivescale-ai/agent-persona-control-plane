@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent persona",
+  "description": "One file per kind of agent. A persona is an entitlement set, not a prompt.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "owner", "sponsor", "purpose", "identity", "model_access",
+               "data_classes", "tool_scope", "action_contract",
+               "autonomy_level", "expires", "bindings"],
+  "properties": {
+    "id":       {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,40}$"},
+    "owner":    {"type": "string", "description": "One named person who answers for this agent."},
+    "sponsor":  {"type": "string", "description": "The role that pays for it and signs the review."},
+    "purpose":  {"type": "string", "maxLength": 200},
+    "identity": {
+      "type": "object", "additionalProperties": false, "required": ["runs_as"],
+      "properties": {"runs_as": {"enum": ["agent", "user"]}}
+    },
+    "model_access":   {"type": "string"},
+    "data_classes":   {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "risk_tier":      {"type": "integer", "description": "Optional. If present it must equal the derived tier."},
+    "tool_scope":     {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "action_contract": {
+      "type": "object", "additionalProperties": false, "required": ["alone", "needs_approver", "never"],
+      "properties": {
+        "alone": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "needs_approver": {
+          "type": "object", "additionalProperties": false, "required": ["role", "actions"],
+          "properties": {
+            "role":    {"type": "string"},
+            "actions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+          }
+        },
+        "never": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "autonomy_level": {"enum": ["intern", "junior", "senior", "principal"]},
+    "expires":        {"type": "string", "format": "date"},
+    "bindings": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["project", "environment", "data_scope", "acting_for", "approver"],
+        "properties": {
+          "project":     {"type": "string"},
+          "environment": {"enum": ["dev", "test", "prod"]},
+          "data_scope":  {"type": "string"},
+          "acting_for":  {"type": "string"},
+          "approver":    {"type": "string"}
+        }
+      }
+    }
+  }
+}

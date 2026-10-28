@@ -1,0 +1,5 @@
+# Who has to approve a change before it can merge.
+/personas/   @identity-team @agent-sponsors
+/catalog/    @security-architecture
+/schema/     @identity-team
+/tools/      @identity-team

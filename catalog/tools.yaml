@@ -1,0 +1,11 @@
+# The tool registry. A tool that is not listed here cannot be put in any persona's scope.
+# class: read | write | admin
+# blast: how much one wrong call can break. none | low | medium | high
+tools:
+  siem.search:               {class: read,  blast: none}
+  edr.get_detection:         {class: read,  blast: none}
+  intel.lookup:              {class: read,  blast: none}
+  case.add_note:             {class: write, blast: low}
+  edr.isolate_host:          {class: write, blast: medium}
+  idp.disable_user:          {class: admin, blast: high}
+  edr.delete_detection_rule: {class: admin, blast: high}

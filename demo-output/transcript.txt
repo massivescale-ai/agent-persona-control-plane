@@ -1,0 +1,195 @@
+### 1. Before anything is merged: the gateway has no policy
+
+$ python tools/check.py
+no compiled policy. Nothing has been merged, so every call is denied.
+
+### 2. Pull request opened: the persona as found. Lint runs.
+
+$ python tools/lint.py
+FAIL  soc-triage.yaml
+  P004  identity.runs_as is 'user'. The agent must hold its own identity, so its logs, limits, and off switch are its own.
+  P006  risk_tier is 1 but data class 'employee-pii' makes it 3. Delete the field or fix it.
+
+1 persona file(s) failed lint. Merge is blocked.
+[exit 1]
+
+### 3. The fix
+
+$ git --no-pager diff --no-color -U1
+diff --git a/personas/soc-triage.yaml b/personas/soc-triage.yaml
+index e6145f0..4442b53 100644
+--- a/personas/soc-triage.yaml
++++ b/personas/soc-triage.yaml
+@@ -6,3 +6,3 @@ purpose: Read an EDR alert, pull context, write the first case note.
+ identity:
+-  runs_as: user
++  runs_as: agent
+ 
+@@ -13,3 +13,2 @@ data_classes:
+   - employee-pii
+-risk_tier: 1
+ 
+
+$ python tools/lint.py
+PASS  soc-triage.yaml
+
+### 4. Merge. The compile job runs.
+
+$ python tools/compile.py
+compiled 1 persona(s) at d83c24c
+  out/registry/         1 row(s)
+  out/gateway/policy.csv  7 rule(s), deny by default
+
+$ cat out/registry/soc-triage.json
+{
+  "id": "soc-triage",
+  "status": "active",
+  "owner": "dana.reyes",
+  "sponsor": "soc-manager",
+  "purpose": "Read an EDR alert, pull context, write the first case note.",
+  "runs_as": "agent",
+  "risk_tier": 3,
+  "autonomy_level": "junior",
+  "expires": "2027-04-01",
+  "tool_scope": [
+    "siem.search",
+    "edr.get_detection",
+    "intel.lookup",
+    "case.add_note",
+    "edr.isolate_host"
+  ],
+  "bindings": [
+    {
+      "project": "soc-tier1",
+      "environment": "prod",
+      "data_scope": "edr-tenant-main",
+      "acting_for": "soc-tier1-queue",
+      "approver": "shift-lead-on-call"
+    }
+  ],
+  "source": "personas/soc-triage.yaml@d83c24c"
+}
+
+$ cat out/gateway/policy.csv
+# soc-triage  owner dana.reyes  tier 3  from personas/soc-triage.yaml@d83c24c
+p, soc-triage, soc-tier1, prod, siem.search, call*, allow
+p, soc-triage, soc-tier1, prod, edr.get_detection, call*, allow
+p, soc-triage, soc-tier1, prod, intel.lookup, call*, allow
+p, soc-triage, soc-tier1, prod, case.add_note, call*, allow
+p, soc-triage, soc-tier1, prod, edr.isolate_host, call_approved, allow
+p, soc-triage, *, *, idp.disable_user, *, deny
+p, soc-triage, *, *, edr.delete_detection_rule, *, deny
+
+$ cat out/gateway/model.conf
+[request_definition]
+r = agent, project, env, tool, act
+
+[policy_definition]
+p = agent, project, env, tool, act, eft
+
+[policy_effect]
+e = some(where (p.eft == allow)) && !some(where (p.eft == deny))
+
+[matchers]
+m = r.agent == p.agent && keyMatch(r.project, p.project) && keyMatch(r.env, p.env) && r.tool == p.tool && keyMatch(r.act, p.act)
+
+### 5. Same calls as step 1, asked of the compiled policy
+
+$ python tools/check.py
+ALLOW  soc-triage          soc-tier1  prod  siem.search        call
+ALLOW  soc-triage          soc-tier1  prod  case.add_note      call
+DENY   soc-triage          soc-tier1  prod  edr.isolate_host   call
+ALLOW  soc-triage          soc-tier1  prod  edr.isolate_host   call_approved
+DENY   soc-triage          soc-tier1  prod  idp.disable_user   call_approved
+DENY   soc-triage          payments   prod  siem.search        call
+DENY   unregistered-agent  soc-tier1  prod  siem.search        call
+
+### 6. Promotion, first try: move isolate_host to 'alone' and nothing else
+
+$ python tools/lint.py
+FAIL  soc-triage.yaml
+  P009  'edr.isolate_host' has blast 'medium'. A junior can't run it alone. Move it to needs_approver or promote the agent.
+
+1 persona file(s) failed lint. Merge is blocked.
+[exit 1]
+
+### 7. Promotion as a pull request
+
+$ git --no-pager diff --no-color -U1
+diff --git a/personas/soc-triage.yaml b/personas/soc-triage.yaml
+index 4442b53..c649595 100644
+--- a/personas/soc-triage.yaml
++++ b/personas/soc-triage.yaml
+@@ -27,6 +27,6 @@ action_contract:
+     - case.add_note
++    - edr.isolate_host
+   needs_approver:
+     role: soc-shift-lead
+-    actions:
+-      - edr.isolate_host
++    actions: []
+   never:
+@@ -35,3 +35,3 @@ action_contract:
+ 
+-autonomy_level: junior
++autonomy_level: senior
+ expires: 2027-04-01
+
+$ python tools/lint.py
+PASS  soc-triage.yaml
+
+$ python tools/compile.py
+compiled 1 persona(s) at 6bb3968
+  out/registry/         1 row(s)
+  out/gateway/policy.csv  7 rule(s), deny by default
+
+$ python tools/check.py soc-triage soc-tier1 prod edr.isolate_host call
+ALLOW  soc-triage          soc-tier1  prod  edr.isolate_host   call
+
+### 8. Demotion: revert the promotion merge
+
+$ git revert --no-edit -m 1 HEAD
+[main 6c1a563] Revert "Merge pull request #2: promote soc-triage to senior"
+ Date: Wed Oct 7 09:55:43 2026 -0400
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+$ python tools/compile.py
+compiled 1 persona(s) at 6c1a563
+  out/registry/         1 row(s)
+  out/gateway/policy.csv  7 rule(s), deny by default
+
+$ python tools/check.py soc-triage soc-tier1 prod edr.isolate_host call
+DENY   soc-triage          soc-tier1  prod  edr.isolate_host   call
+
+$ python tools/check.py soc-triage soc-tier1 prod edr.isolate_host call_approved
+ALLOW  soc-triage          soc-tier1  prod  edr.isolate_host   call_approved
+
+### 9. Off switch: delete the file, merge, recompile
+
+$ python tools/compile.py
+compiled 0 persona(s) at 23cedab
+  out/registry/         0 row(s)
+  out/gateway/policy.csv  0 rule(s), deny by default
+
+$ python tools/check.py
+DENY   soc-triage          soc-tier1  prod  siem.search        call
+DENY   soc-triage          soc-tier1  prod  case.add_note      call
+DENY   soc-triage          soc-tier1  prod  edr.isolate_host   call
+DENY   soc-triage          soc-tier1  prod  edr.isolate_host   call_approved
+DENY   soc-triage          soc-tier1  prod  idp.disable_user   call_approved
+DENY   soc-triage          payments   prod  siem.search        call
+DENY   unregistered-agent  soc-tier1  prod  siem.search        call
+
+### History
+
+$ git --no-pager log --oneline --no-color
+23cedab Merge pull request #3: retire soc-triage
+6c1a563 Revert "Merge pull request #2: promote soc-triage to senior"
+7ce91b8 Retire soc-triage
+6bb3968 Merge pull request #2: promote soc-triage to senior
+3e5979b Promote soc-triage to senior: isolate_host runs alone
+d83c24c Merge pull request #1: add soc-triage persona
+0630e26 Give the agent its own identity. Let lint derive the tier.
+a7d5210 Add soc-triage persona, written the way we found it
+a6a4881 Catalog, schema, lint, compile, check
+

@@ -1,0 +1,8 @@
+# Each data class carries a tier. A persona's risk tier is the highest tier it touches.
+# Nobody types the tier by hand. Lint derives it.
+data_classes:
+  public:             1
+  internal:           2
+  security-telemetry: 2
+  employee-pii:       3
+  customer-pii:       3
