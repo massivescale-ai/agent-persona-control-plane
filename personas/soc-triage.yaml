@@ -4,13 +4,14 @@ sponsor: soc-manager
 purpose: Read an EDR alert, pull context, write the first case note.
 
 identity:
-  runs_as: agent
+  runs_as: user
 
 model_access: llm-gateway
 
 data_classes:
   - security-telemetry
   - employee-pii
+risk_tier: 1
 
 tool_scope:
   - siem.search
